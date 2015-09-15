@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <% include ../partials/header.ejs %>
+</head>
+
+<body>
+
+<div>
+   <div id="w">
+    <h1>Github Repository Info</h1>
+    <p>Enter a Github repository URL below and click the button to view information about the issues.</p>
+    
+    <input type="text" name="ghurl" id="ghurl" placeholder="Github repo URL...">
+    
+    <a href="#" id="ghsubmitbtn">Submit</a>
+    
+    <div id="ghapidata" class="clearfix"></div>
+  </div>
+</div>
+<script type="text/javascript">
+$(function(){
+  $('#ghsubmitbtn').on('click', function(e){
+    e.preventDefault();
+    $('#ghapidata').html('<div id="loader"><img src="/stylesheets/loader.gif" alt="loading..."></div>');
+    
+	//Get the url entered
+    var ghurlValue = $('#ghurl').val();
+	
+	//URL should be of the form https://github.com/Shippable/support
+	if(ghurlValue == "") {
+		$('#ghapidata').html("<h2>Please enter the URL</h2>");
+	}
+	else  {
+	    //Check for valid URL
+		var ghurlArr = ghurlValue.split('/');
+		if(ghurlArr[0] != "https:" || ghurlArr[1] != "" || ghurlArr[2] != "github.com" || ghurlArr[3] == undefined || ghurlArr[3] == "" ) {
+			$('#ghapidata').html("<h2>Invalid URL</h2>");
+		}
+		else {
+			var user = ghurlArr[3];
+			var repository = ghurlArr[4];
+			var requri   = 'https://api.github.com/users/'+user;
+			var repouri = 'https://api.github.com/repos/'+user+'/'+repository;
+			var currentDate = new Date();
+			var prevDate = new Date(currentDate-1000*24*60*60);
+			var prevDateISO = prevDate.toISOString();
+			var prevWeek = new Date(currentDate-7*1000*24*60*60);
+			var prevWeekISO = prevWeek.toISOString();
+			var repouriPrevDay = repouri + '/issues?since='+prevDateISO;
+			var repouriWeekDay = repouri + '/issues?since='+prevWeekISO;
+			
+			requestJSON(requri, function(json) {
+			  if(json.message == "Not Found" || user == '') {
+				$('#ghapidata').html("<h2>No User Info Found</h2>");
+			  }
+			  
+			  else {
+				// else we have a user and we display their info
+				var fullname   = json.name;
+				var username   = json.login;
+				var aviurl     = json.avatar_url;
+				var profileurl = json.html_url;
+				
+				if(fullname == undefined) { fullname = username; }
+				
+				var outhtml = '<h2>'+fullname+' <span class="smallname">(@<a href="'+profileurl+'" target="_blank">'+username+'</a>)</span></h2>';
+				outhtml = outhtml + '<div class="ghcontent"><div class="avi"><a href="'+profileurl+'" target="_blank"><img src="'+aviurl+'" width="80" height="80" alt="'+username+'"></a></div>';
+				outhtml = outhtml + '<div class="repolist clearfix">';
+				
+				var openissues, openissuesSinceYest, openissuesSinceLastWeek;
+				if(repository == undefined || repository == "") {
+					outhtml = outhtml + '<p>No Repository Specified!</p></div>';
+					$('#ghapidata').html(outhtml);
+				} 
+				else {
+					$.getJSON(repouri, function(json){
+					   if(json.message == "Not Found" || repository == '' || repository == undefined) {
+							outhtml = outhtml + '<p>No Repository Info Found!</p></div>';
+							$('#ghapidata').html(outhtml);
+						}
+					  else {	
+						  openissues = json;
+						  $.getJSON(repouriPrevDay, function(json){
+							openissuesSinceYest = json;
+								$.getJSON(repouriWeekDay, function(json){
+								  openissuesSinceLastWeek = json;
+								  outputPageContent();                         
+								});         
+						  }); 
+					  }		
+					}).fail(function() {
+						outhtml = outhtml + '<p>No Repository Info Found!</p></div>';
+						$('#ghapidata').html(outhtml);
+					}); 
+				}			
+					   
+				function outputPageContent() {
+				  if(openissues != undefined) {
+					var last7DaysButAfterYest = openissuesSinceLastWeek.length - openissuesSinceYest.length;
+					var moreThan7Days = openissues.open_issues_count-openissuesSinceLastWeek.length;
+					
+				/*	Uncomment To display as list
+					outhtml = outhtml + '<p><strong>Total Number of open issues: '+openissues.open_issues_count;
+					outhtml = outhtml + '<br>Number of open issues that were opened in the last 24 hours: '+openissuesSinceYest.length;
+					outhtml = outhtml + '<br>Number of open issues that were opened more than 24 hours ago but less than 7 days ago: '+last7DaysButAfterYest;
+					outhtml = outhtml + '<br>Number of open issues that were opened more than 7 days ago: '+moreThan7Days+'</strong></p>'; */
+					
+					//Displaying info in a table
+					outhtml = outhtml + '<h2>Repository: '+repository+'</h2>';
+					outhtml = outhtml + '<table border="1px">';
+					outhtml = outhtml + '<tr><td colspan="2"><p><strong>Total Open Issues: '+openissues.open_issues_count+'</strong></p></td></tr>';
+					outhtml = outhtml + '<tr><td><p><strong>Opened Since</strong></p></td><td><p><strong>Number of Issues</strong></p></td></tr>';
+					outhtml = outhtml + '<tr><td><p>Last 24 hrs</p></td><td><p>'+openissuesSinceYest.length+'</p></td></tr>';
+					outhtml = outhtml + '<tr><td><p>Last 7 days but after last 24 hrs</p></td><td><p>'+last7DaysButAfterYest+'</p></td></tr>';
+					outhtml = outhtml + '<tr><td><p>More than last 7 days</p></td><td><p>'+moreThan7Days+'</p></td></tr></table>';
+					outhtml = outhtml + '</ul></div>'; 
+				  }
+				  else {
+					outhtml = outhtml + '<p>No repos!</p></div>';
+				  }
+				  
+				  $('#ghapidata').html(outhtml);
+				} // end outputPageContent()
+			  } // end else statement
+			}); // end requestJSON Ajax call
+	 	} //end else statement
+    } // end else statement	
+  }); // end click event handler
+  
+  function requestJSON(url, callback) {
+    $.ajax({
+      url: url,
+      complete: function(xhr) {
+        callback.call(null, xhr.responseJSON);
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

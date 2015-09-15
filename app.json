@@ -1,0 +1,6 @@
+{
+  "name": "Node.js GitHub Repo App",
+  "description": "A Node.js app using Github API showing repository info",
+  "repository": "",
+  "keywords": ["node", "express", "static"]
+}
