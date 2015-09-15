@@ -1,6 +1,6 @@
 {
   "name": "Node.js GitHub Repo App",
   "description": "A Node.js app using Github API showing repository info",
-  "repository": "",
+  "repository": "https://github.com/swat7/nodejs-github-webapp",
   "keywords": ["node", "express", "static"]
 }
